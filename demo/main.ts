@@ -10,12 +10,8 @@ import {
   timer,
 } from "rxjs";
 
-import {
-  createInspector,
-  instrument,
-  instrumentScan,
-  type Action,
-} from "../src/index";
+import { createInspector, instrument, instrumentScan } from "../src/index";
+import { createDevtoolsPanel } from "../src/panel/index";
 
 function byId<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -24,6 +20,18 @@ function byId<T extends HTMLElement>(id: string): T {
   }
   return element as T;
 }
+
+// --- The built-in RxJS DevTools panel ---------------------------------------
+// Every store below is attached to it; the Redux DevTools extension, when
+// installed, receives the same history in parallel.
+
+const panel = createDevtoolsPanel({ container: byId("panel") });
+byId("popout").onclick = () => {
+  if (!panel.popOut()) {
+    byId("popout-hint").textContent =
+      "The popup was blocked. Allow popups for this page and try again.";
+  }
+};
 
 // --- 1. instrument(): a reducer-driven store with full time travel -------
 
@@ -66,6 +74,7 @@ const counter = instrument<CounterState, CounterAction>(
     },
   },
 );
+panel.attach("Counter", counter);
 
 counter.state$.subscribe((state) => {
   byId("count").textContent = String(state.count);
@@ -88,6 +97,8 @@ const ticks$ = interval(1000).pipe(
     name: "Ticker",
     maxAge: 100,
     actionType: "[Ticker] tick",
+    // The panel detaches the store again when the subscription ends.
+    onStore: (store) => panel.attach("Ticker", store),
   }),
 );
 
@@ -135,7 +146,9 @@ function search(query: string) {
   return query ? timer(250).pipe(map(() => hits)) : of([]);
 }
 
-const { inspect } = createInspector({ name: "Search" });
+const inspector = createInspector({ name: "Search" });
+const { inspect } = inspector;
+panel.attach("Search", inspector.store);
 
 const input = byId<HTMLInputElement>("query");
 fromEvent(input, "input")
@@ -154,13 +167,12 @@ fromEvent(input, "input")
       : "(no results)";
   });
 
-// Expose the store for poking around in the console.
+// Expose the store and the panel for poking around in the console.
 declare global {
   interface Window {
     counter: typeof counter;
+    panel: typeof panel;
   }
 }
 window.counter = counter;
-
-// Keep the Action type import referenced for readers of this file.
-export type DemoAction = Action;
+window.panel = panel;

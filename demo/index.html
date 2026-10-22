@@ -82,6 +82,9 @@
       ul {
         padding-left: 1.2rem;
       }
+      #panel {
+        height: 440px;
+      }
     </style>
   </head>
   <body>
@@ -132,6 +135,18 @@
         <code>debounced$</code> and <code>results$</code>. The extension's state
         tab shows their latest values side by side.
       </p>
+    </section>
+
+    <section>
+      <h2>RxJS DevTools panel &mdash; no extension needed</h2>
+      <p class="hint">
+        The same history rendered by the library itself, under its own title and
+        icon: jump, skip, commit, revert, import and export. All three stores
+        above are attached.
+        <button id="popout">Pop out window</button>
+        <span id="popout-hint"></span>
+      </p>
+      <div id="panel"></div>
     </section>
 
     <script type="module" src="./main.ts"></script>
