@@ -358,6 +358,38 @@ describe("openDevtoolsWindow", () => {
     expect(popup.document.title).toBe("Custom title");
     popped?.destroy();
   });
+
+  it("mirrors later attach and detach calls to the popped-out window", () => {
+    const popup = new JSDOM(
+      "<!doctype html><html><head></head><body></body></html>",
+    ).window;
+    vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+    const f = setup();
+    const popped = f.panel.popOut();
+    if (!popped) throw new Error("popOut returned null");
+
+    const other = instrument<number, Action>(counter, 0, { extension: null });
+    const detach = f.panel.attach("Other", other);
+    expect(popped.instances).toEqual(["Counter", "Other"]);
+
+    detach();
+    expect(popped.instances).toEqual(["Counter"]);
+
+    // A store that destroys itself disappears from both as well.
+    f.panel.attach("Other", other);
+    other.destroy();
+    expect(f.panel.instances).toEqual(["Counter"]);
+    expect(popped.instances).toEqual(["Counter"]);
+
+    // Once the window is gone the link is dropped silently.
+    popped.destroy();
+    expect(popped.destroyed).toBe(true);
+    const third = instrument<number, Action>(counter, 0, { extension: null });
+    expect(() => f.panel.attach("Third", third)).not.toThrow();
+    expect(popped.instances).toEqual([]);
+    expect(f.panel.destroyed).toBe(false);
+    third.destroy();
+  });
 });
 
 describe("diffStates", () => {

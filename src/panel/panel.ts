@@ -51,10 +51,16 @@ export interface DevtoolsPanel {
   detach(name: string): void;
   /** Switches the view to the named store. */
   select(name: string): void;
-  /** Opens the attached stores in a separate window; `null` if popups are blocked. */
+  /**
+   * Opens the attached stores in a separate window; `null` if popups are
+   * blocked. While that window is open it mirrors every later `attach` and
+   * `detach` on this panel.
+   */
   popOut(options?: DevtoolsWindowOptions): DevtoolsPanel | null;
   /** Unsubscribes from every store and removes the panel from the document. */
   destroy(): void;
+  /** `true` once `destroy` ran or, for a window, once it was closed. */
+  readonly destroyed: boolean;
 }
 
 interface Instance {
@@ -166,6 +172,18 @@ export function createDevtoolsPanel(
   let filter = "";
   let playTimer: ReturnType<typeof setInterval> | undefined;
   let destroyed = false;
+  // Popped-out windows that mirror this panel's attach/detach calls.
+  const linked = new Set<DevtoolsPanel>();
+
+  const forEachLinked = (run: (panel: DevtoolsPanel) => void): void => {
+    for (const panel of linked) {
+      if (panel.destroyed) {
+        linked.delete(panel);
+      } else {
+        run(panel);
+      }
+    }
+  };
 
   const current = (): Instance | undefined =>
     active === undefined ? undefined : instances.get(active);
@@ -720,6 +738,7 @@ export function createDevtoolsPanel(
       active = name;
     }
     render();
+    forEachLinked((panel) => panel.attach(name, store));
     return () => detach(name);
   }
 
@@ -736,6 +755,7 @@ export function createDevtoolsPanel(
       stopPlay();
     }
     render();
+    forEachLinked((panel) => panel.detach(name));
   }
 
   function select(name: string): void {
@@ -758,6 +778,7 @@ export function createDevtoolsPanel(
     for (const [name, instance] of instances) {
       panel.attach(name, instance.store);
     }
+    linked.add(panel);
     return panel;
   }
 
@@ -770,6 +791,7 @@ export function createDevtoolsPanel(
       instance.unsubscribe();
     }
     instances.clear();
+    linked.clear();
     root.remove();
     destroyed = true;
   }
@@ -780,6 +802,9 @@ export function createDevtoolsPanel(
     element: root,
     get instances() {
       return [...instances.keys()];
+    },
+    get destroyed() {
+      return destroyed;
     },
     attach,
     detach,
@@ -844,6 +869,9 @@ export function openDevtoolsWindow(
     element: inner.element,
     get instances() {
       return inner.instances;
+    },
+    get destroyed() {
+      return inner.destroyed;
     },
     attach: (name, store) => inner.attach(name, store),
     detach: (name) => inner.detach(name),
