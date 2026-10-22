@@ -308,6 +308,45 @@ describe("openDevtoolsWindow", () => {
     store.destroy();
   });
 
+  it("replaces a panel left behind by a previous page in the same window", () => {
+    const popup = new JSDOM(
+      '<!doctype html><html><head><link rel="icon" href="data:old"></head><body><div class="rxdt">stale</div></body></html>',
+    ).window;
+    vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+
+    const panel = openDevtoolsWindow();
+    expect(popup.document.querySelectorAll(".rxdt")).toHaveLength(1);
+    expect(popup.document.querySelector(".rxdt")?.textContent).not.toBe(
+      "stale",
+    );
+    expect(popup.document.querySelectorAll('link[rel="icon"]')).toHaveLength(1);
+    expect(
+      popup.document.querySelector('link[rel="icon"]')?.getAttribute("href"),
+    ).toBe(RXJS_DEVTOOLS_ICON_DATA_URI);
+    panel?.destroy();
+  });
+
+  it("tears down and closes the window when the opener unloads", async () => {
+    const popup = new JSDOM(
+      "<!doctype html><html><head></head><body></body></html>",
+    ).window;
+    const close = vi.spyOn(popup, "close").mockImplementation(() => undefined);
+    vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+    const store = instrument<number, Action>(counter, 0, { extension: null });
+    const panel = openDevtoolsWindow();
+    panel?.attach("Counter", store);
+
+    window.dispatchEvent(new Event("pagehide"));
+    expect(popup.document.querySelector(".rxdt")).toBeNull();
+    expect(close).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(close).toHaveBeenCalledTimes(1);
+
+    // The store is no longer observed by the destroyed panel.
+    expect(() => store.dispatch({ type: "INCREMENT" })).not.toThrow();
+    store.destroy();
+  });
+
   it("pops an inline panel out with its instances", () => {
     const popup = new JSDOM(
       "<!doctype html><html><head></head><body></body></html>",

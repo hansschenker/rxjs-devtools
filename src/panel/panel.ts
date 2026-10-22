@@ -819,13 +819,20 @@ export function openDevtoolsWindow(
   }
 
   const doc = popup.document;
+  // The window can outlive a reload of the opener while the WeakMap does
+  // not, so replace whatever a previous page left behind instead of stacking
+  // a second panel on top of it.
+  doc.body.replaceChildren();
   doc.title = title;
   doc.documentElement.lang = "en";
-  const favicon = doc.createElement("link");
-  favicon.rel = "icon";
+  let favicon = doc.head.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!favicon) {
+    favicon = doc.createElement("link");
+    favicon.rel = "icon";
+    doc.head.appendChild(favicon);
+  }
   favicon.type = "image/svg+xml";
   favicon.href = RXJS_DEVTOOLS_ICON_DATA_URI;
-  doc.head.appendChild(favicon);
   doc.body.style.margin = "0";
   doc.body.style.height = "100vh";
 
@@ -855,7 +862,21 @@ export function openDevtoolsWindow(
     inner.destroy();
     windowPanels.delete(popup);
   });
-  // A reload or navigation of the opener would leave a window with stale data.
-  window.addEventListener("pagehide", () => panel.destroy(), { once: true });
+  // A reload or navigation of the opener would leave a window with stale
+  // data. Unsubscribe right away, but close the window from the popup's own
+  // event loop rather than from inside the opener's unload handler.
+  window.addEventListener(
+    "pagehide",
+    () => {
+      inner.destroy();
+      windowPanels.delete(popup);
+      popup.setTimeout(() => {
+        if (!popup.closed) {
+          popup.close();
+        }
+      }, 0);
+    },
+    { once: true },
+  );
   return panel;
 }
