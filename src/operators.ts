@@ -1,7 +1,7 @@
 import { Observable, skip, type OperatorFunction } from "rxjs";
 
 import type { DevtoolsConfig } from "./config";
-import { instrument } from "./devtools";
+import { instrument, type InstrumentedStore } from "./devtools";
 import { isSystemAction } from "./reducer";
 import { isAction, type Action, type ActionReducer } from "./types";
 
@@ -24,6 +24,13 @@ export interface InstrumentScanOptions<S = unknown> extends Partial<
    * to carry this type are wrapped as well, so unwrapping stays unambiguous.
    */
   actionType?: string;
+  /**
+   * Called once per subscription with the instrumented store that backs it,
+   * before the source is subscribed. Use it to reach `store.devtools` for
+   * programmatic time travel (also without the extension), `liftedState$`,
+   * or `replaceReducer`. The store is destroyed when the subscription ends.
+   */
+  onStore?: (store: InstrumentedStore<S, Action>) => void;
 }
 
 /**
@@ -40,6 +47,9 @@ export interface InstrumentScanOptions<S = unknown> extends Partial<
  * actions are wrapped as `{ type: "next", payload: value }` for display and
  * unwrapped again before they reach the accumulator.
  *
+ * Each subscription gets its own history and its own extension instance;
+ * put `share()` after the operator when several subscribers share one stream.
+ *
  * ```ts
  * const count$ = clicks$.pipe(instrumentScan((count) => count + 1, 0));
  * const todos$ = actions$.pipe(instrumentScan(todosReducer, [], { name: "Todos" }));
@@ -53,8 +63,11 @@ export function instrumentScan<T, S>(
   return (source) =>
     new Observable<S>((subscriber) => {
       const resolved = typeof options === "function" ? options() : options;
-      const { actionType = DEFAULT_VALUE_ACTION_TYPE, ...devtoolsOptions } =
-        resolved;
+      const {
+        actionType = DEFAULT_VALUE_ACTION_TYPE,
+        onStore,
+        ...devtoolsOptions
+      } = resolved;
 
       const toAction = (value: T): Action => {
         if (isAction(value) && value.type !== actionType) {
@@ -78,6 +91,9 @@ export function instrumentScan<T, S>(
         next: (state) => subscriber.next(state),
         error: (error) => subscriber.error(error),
       });
+      // The output is wired up, so anything `onStore` does to the history
+      // (a jump, an import) already reaches the subscriber.
+      onStore?.(store);
       subscription.add(
         source.subscribe({
           next: (value) => store.dispatch(toAction(value)),

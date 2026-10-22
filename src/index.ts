@@ -1,8 +1,8 @@
-export { instrument } from "./devtools";
-export type { DevtoolsController, InstrumentedStore } from "./devtools";
-
 export { instrumentScan, DEFAULT_VALUE_ACTION_TYPE } from "./operators";
 export type { InstrumentScanOptions, ValueAction } from "./operators";
+
+export { instrument } from "./devtools";
+export type { DevtoolsController, InstrumentedStore } from "./devtools";
 
 export {
   createInspector,

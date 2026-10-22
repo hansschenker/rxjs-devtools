@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { Subject, from, of, throwError } from "rxjs";
+import { Observable, Subject, from, of, throwError } from "rxjs";
 
 import { PERFORM_ACTION } from "../src/actions";
-import { instrumentScan } from "../src/operators";
+import type { InstrumentedStore } from "../src/devtools";
+import { instrumentScan, type ValueAction } from "../src/operators";
 import type { Action } from "../src/types";
 import { createMockDevtools } from "./helpers";
 
@@ -192,5 +193,101 @@ describe("instrumentScan", () => {
       .subscribe((value) => values.push(value));
     expect(options).toHaveBeenCalledTimes(1);
     expect(values).toEqual([1, 3]);
+  });
+
+  describe("onStore", () => {
+    it("hands out the backing store once per subscription", () => {
+      const stores: InstrumentedStore<number, Action>[] = [];
+      const source = new Subject<number>();
+      const instrumented = source.pipe(
+        instrumentScan((acc, value) => acc + value, 0, {
+          extension: null,
+          onStore: (store) => stores.push(store),
+        }),
+      );
+
+      const first = instrumented.subscribe();
+      const second = instrumented.subscribe();
+      expect(stores).toHaveLength(2);
+      expect(stores[0]).not.toBe(stores[1]);
+
+      const completed: number[] = [];
+      stores[0].state$.subscribe({ complete: () => completed.push(0) });
+      stores[1].state$.subscribe({ complete: () => completed.push(1) });
+      first.unsubscribe();
+      expect(completed).toEqual([0]);
+      second.unsubscribe();
+      expect(completed).toEqual([0, 1]);
+    });
+
+    it("enables programmatic time travel without the extension", () => {
+      let store!: InstrumentedStore<number, Action>;
+      const values: number[] = [];
+      const source = new Subject<CounterAction>();
+      source
+        .pipe(
+          instrumentScan(counter, 0, {
+            extension: null,
+            onStore: (backing) => (store = backing),
+          }),
+        )
+        .subscribe((value) => values.push(value));
+
+      source.next({ type: "INCREMENT" });
+      source.next({ type: "INCREMENT" });
+      expect(values).toEqual([1, 2]);
+
+      store.devtools.toggleAction(1);
+      expect(values).toEqual([1, 2, 1]);
+      expect(store.getState()).toBe(1);
+      expect(store.getLiftedState().skippedActionIds).toEqual([1]);
+
+      store.devtools.jumpToState(0);
+      expect(values).toEqual([1, 2, 1, 0]);
+
+      store.devtools.reset();
+      source.next({ type: "DECREMENT" });
+      expect(values).toEqual([1, 2, 1, 0, -1]);
+    });
+
+    it("runs after the output is wired and before the source is subscribed", () => {
+      const order: string[] = [];
+      const source = new Observable<number>((subscriber) => {
+        order.push("source subscribed");
+        subscriber.next(5);
+      });
+      const values: number[] = [];
+
+      source
+        .pipe(
+          instrumentScan((acc: number, value: number) => acc + value, 10, {
+            extension: null,
+            onStore: (store) => {
+              order.push("onStore");
+              const wrapped: ValueAction<number> = { type: "next", payload: 1 };
+              store.dispatch(wrapped);
+            },
+          }),
+        )
+        .subscribe((value) => values.push(value));
+
+      expect(order).toEqual(["onStore", "source subscribed"]);
+      expect(values).toEqual([11, 16]);
+    });
+
+    it("does not leak into the devtools config", () => {
+      let store!: InstrumentedStore<number, Action>;
+      of(1)
+        .pipe(
+          instrumentScan((acc: number) => acc, 0, {
+            extension: null,
+            actionType: "tick",
+            onStore: (backing) => (store = backing),
+          }),
+        )
+        .subscribe();
+      expect(store.config).not.toHaveProperty("onStore");
+      expect(store.config).not.toHaveProperty("actionType");
+    });
   });
 });
