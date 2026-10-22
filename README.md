@@ -139,6 +139,11 @@ with Prev, Play and Next, and an instance dropdown once more than one store is
 attached. A store detaches itself when it is destroyed, which is what makes
 `onStore` a one-liner above.
 
+The panel honours the same feature flags as the extension, read from each
+store's `features`. A log-only store, such as an inspector, therefore shows no
+Jump, Skip, slider, Lock or Import, only Pause, Export and the history
+commands, and the controls change when you switch instances.
+
 `openDevtoolsWindow()` has to run from a user gesture because of popup
 blockers and returns `null` when blocked; calling it again focuses the open
 window. The panel is framework-free DOM code with no runtime dependency on the

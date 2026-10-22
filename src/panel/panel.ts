@@ -1,6 +1,7 @@
 import type { PerformAction } from "../actions";
 import type { InstrumentedStore } from "../devtools";
 import type { LiftedState } from "../reducer";
+import type { DevtoolsFeatureOptions } from "../redux-devtools";
 import type { Action } from "../types";
 import { diffStates } from "./diff";
 import { RXJS_DEVTOOLS_ICON_DATA_URI, RXJS_DEVTOOLS_ICON_SVG } from "./icon";
@@ -172,6 +173,13 @@ export function createDevtoolsPanel(
   let filter = "";
   let playTimer: ReturnType<typeof setInterval> | undefined;
   let destroyed = false;
+  // The panel honours the same feature flags as the extension: a feature
+  // missing from a store's `features` (as with `logOnly`) is disabled.
+  const allows = (feature: keyof DevtoolsFeatureOptions): boolean => {
+    const features = current()?.store.config.features;
+    return features ? Boolean(features[feature]) : true;
+  };
+
   // Popped-out windows that mirror this panel's attach/detach calls.
   const linked = new Set<DevtoolsPanel>();
 
@@ -526,6 +534,13 @@ export function createDevtoolsPanel(
     sweepButton.disabled =
       !liftedState || liftedState.skippedActionIds.length === 0;
     popOutButton.disabled = instances.size === 0;
+
+    pauseButton.hidden = !allows("pause");
+    lockButton.hidden = !allows("lock");
+    sweepButton.hidden = !allows("skip");
+    exportButton.hidden = !allows("export");
+    importButton.hidden = !allows("import");
+    footer.hidden = !allows("jump");
   }
 
   function renderList(liftedState: AnyLiftedState): void {
@@ -564,17 +579,20 @@ export function createDevtoolsPanel(
           render();
         },
       });
-      const rowActions = el(doc, "div", { className: "rxdt-row-actions" }, [
-        button(
-          "Jump",
-          (event) => {
-            event.stopPropagation();
-            command((store) => store.devtools.jumpToAction(id));
-          },
-          "Jump to this state",
-        ),
-      ]);
-      if (index > 0) {
+      const rowActions = el(doc, "div", { className: "rxdt-row-actions" });
+      if (allows("jump")) {
+        rowActions.append(
+          button(
+            "Jump",
+            (event) => {
+              event.stopPropagation();
+              command((store) => store.devtools.jumpToAction(id));
+            },
+            "Jump to this state",
+          ),
+        );
+      }
+      if (index > 0 && allows("skip")) {
         rowActions.append(
           button(
             skipped ? "Unskip" : "Skip",

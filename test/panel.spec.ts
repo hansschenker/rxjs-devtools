@@ -273,6 +273,71 @@ describe("createDevtoolsPanel", () => {
   });
 });
 
+describe("feature flags", () => {
+  it("hides the controls a log-only store does not offer", () => {
+    const f = setup();
+    const logOnly = instrument<number, Action>(counter, 0, {
+      extension: null,
+      logOnly: true,
+    });
+    logOnly.dispatch({ type: "INCREMENT" });
+    f.panel.attach("Log", logOnly);
+    f.panel.select("Log");
+
+    const labels = (scope: ParentNode) =>
+      [...scope.querySelectorAll("button")]
+        .filter((candidate) => !candidate.hidden)
+        .map((candidate) => candidate.textContent);
+    expect(labels(f.row(1))).toEqual([]);
+    expect(labels(f.container.querySelector(".rxdt-toolbar")!)).toEqual([
+      "Pause",
+      "Commit",
+      "Revert",
+      "Reset",
+      "Export",
+      "Pop out",
+    ]);
+    expect(f.container.querySelector<HTMLElement>(".rxdt-footer")?.hidden).toBe(
+      true,
+    );
+
+    // Switching back to a fully featured store restores everything.
+    f.panel.select("Counter");
+    f.store.dispatch({ type: "INCREMENT" });
+    expect(labels(f.row(1))).toEqual(["Jump", "Skip"]);
+    expect(labels(f.container.querySelector(".rxdt-toolbar")!)).toContain(
+      "Lock",
+    );
+    expect(f.container.querySelector<HTMLElement>(".rxdt-footer")?.hidden).toBe(
+      false,
+    );
+    logOnly.destroy();
+  });
+
+  it("follows individual feature flags", () => {
+    const f = setup();
+    const partial = instrument<number, Action>(counter, 0, {
+      extension: null,
+      features: { jump: true, export: true },
+    });
+    partial.dispatch({ type: "INCREMENT" });
+    f.panel.attach("Partial", partial);
+    f.panel.select("Partial");
+
+    const visible = [...f.row(1).querySelectorAll("button")].map(
+      (candidate) => candidate.textContent,
+    );
+    expect(visible).toEqual(["Jump"]);
+    expect(f.container.querySelector<HTMLElement>(".rxdt-footer")?.hidden).toBe(
+      false,
+    );
+    expect(buttonIn(f.container, "Sweep").hidden).toBe(true);
+    expect(buttonIn(f.container, "Import").hidden).toBe(true);
+    expect(buttonIn(f.container, "Export").hidden).toBe(false);
+    partial.destroy();
+  });
+});
+
 describe("openDevtoolsWindow", () => {
   it("returns null when the popup is blocked", () => {
     vi.spyOn(window, "open").mockReturnValue(null);
