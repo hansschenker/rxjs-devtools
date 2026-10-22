@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>rxjs-devtools demo</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --accent: #c2185b;
+        --border: color-mix(in srgb, currentColor 18%, transparent);
+      }
+      body {
+        margin: 0;
+        padding: 2rem;
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        line-height: 1.5;
+        max-width: 56rem;
+        margin-inline: auto;
+      }
+      h1 {
+        color: var(--accent);
+        margin-top: 0;
+      }
+      section {
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+      }
+      h2 {
+        margin-top: 0;
+        font-size: 1.1rem;
+      }
+      code,
+      pre {
+        font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+        font-size: 0.9em;
+      }
+      pre {
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+        background: color-mix(in srgb, currentColor 6%, transparent);
+        overflow-x: auto;
+      }
+      button {
+        font: inherit;
+        padding: 0.35rem 0.8rem;
+        border-radius: 0.375rem;
+        border: 1px solid var(--accent);
+        background: transparent;
+        color: var(--accent);
+        cursor: pointer;
+        margin-right: 0.4rem;
+      }
+      button.primary {
+        background: var(--accent);
+        color: white;
+      }
+      input {
+        font: inherit;
+        padding: 0.35rem 0.6rem;
+        border-radius: 0.375rem;
+        border: 1px solid var(--border);
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .value {
+        font-size: 2rem;
+        font-weight: 600;
+        margin: 0.5rem 0;
+      }
+      .hint {
+        opacity: 0.75;
+        font-size: 0.9em;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>rxjs-devtools</h1>
+    <p>
+      Open the <strong>Redux DevTools</strong> browser extension and pick an
+      instance from its dropdown: <em>Counter</em>, <em>Ticker</em> and
+      <em>Search</em>. Jump, skip, commit and rollback from there and watch the
+      page follow.
+    </p>
+    <p class="hint">
+      No extension installed? Everything below still works, the page just has
+      nothing to talk to. Install it from the Chrome Web Store or Firefox
+      Add-ons ("Redux DevTools").
+    </p>
+
+    <section>
+      <h2><code>instrument(reducer, initialState)</code> &mdash; Counter</h2>
+      <div class="value" id="count">0</div>
+      <button class="primary" id="increment">+1</button>
+      <button id="decrement">&minus;1</button>
+      <button id="reset-counter">reset</button>
+      <button id="commit">commit</button>
+      <button id="rollback">rollback</button>
+      <p class="hint">
+        Dispatched actions: <span id="count-actions">0</span>. Try skipping an
+        action in the extension's Inspector and the count recomputes.
+      </p>
+    </section>
+
+    <section>
+      <h2><code>instrumentScan(accumulator, seed)</code> &mdash; Ticker</h2>
+      <div class="value" id="ticks">&ndash;</div>
+      <button class="primary" id="toggle-ticker">start</button>
+      <p class="hint">
+        A plain <code>interval(1000)</code> piped through
+        <code>instrumentScan((ticks) =&gt; ticks + 1, 0)</code>. Each tick is a
+        <code>next</code> action; use the slider in the extension to travel.
+      </p>
+    </section>
+
+    <section>
+      <h2><code>inspect(name)</code> &mdash; Search</h2>
+      <input id="query" placeholder="Type to search RxJS operators" />
+      <pre id="results">(no results)</pre>
+      <p class="hint">
+        Three inspected streams: <code>query$</code>,
+        <code>debounced$</code> and <code>results$</code>. The extension's state
+        tab shows their latest values side by side.
+      </p>
+    </section>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
