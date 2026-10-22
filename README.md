@@ -336,6 +336,12 @@ expect(values).toEqual([1, 0]);
 To test the extension protocol, pass a fake extension object with `connect`
 and `send`; see `test/helpers.ts` for one.
 
+## Guides
+
+- [Use case: an autosuggest pipeline under RxJS DevTools](docs/use-case-scenario-autosuggest.md)
+  walks through the demo's Search section with concrete scenarios and
+  expected observations.
+
 ## Development
 
 ```
